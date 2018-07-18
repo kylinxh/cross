@@ -137,7 +137,7 @@ CAApplication::~CAApplication(void)
     CC_SAFE_RELEASE(m_pRootWindow);
     CC_SAFE_RELEASE(m_pNotificationView);
     CC_SAFE_RELEASE(m_pTouchDispatcher);
-    CC_SAFE_RELEASE(m_pKeypadDispatcher);
+    CC_SAFE_RELEASE_NULL(m_pKeypadDispatcher);
     CC_SAFE_RELEASE(m_pThemeManager);
 	CC_SAFE_DELETE(m_defaultFBO);
 	CC_SAFE_RELEASE_NULL(m_pActionManager);
@@ -669,6 +669,7 @@ void CAApplication::end()
 void CAApplication::restart()
 {
     m_bRestartApplicationInNextLoop = true;
+    m_pobOpenGLView->setTouchDelegate(nullptr);
 }
 
 void CAApplication::reset()
@@ -678,17 +679,20 @@ void CAApplication::reset()
     
     if (m_pRootWindow)
     {
+        m_pRootWindow->onExitTransitionDidStart();
+        m_pRootWindow->onExit();
+        
 #if CC_ENABLE_SCRIPT_BINDING
         if (CAScriptEngineManager::getScriptEngineManager())
         {
             CAScriptEngineManager::getScriptEngineManager()->getScriptEngine()->releaseScriptObject(this, m_pRootWindow);
         }
 #endif
-        m_pRootWindow->onExitTransitionDidStart();
-        m_pRootWindow->onExit();
         m_pRootWindow->release();
-		m_pRootWindow = nullptr;
+        m_pRootWindow = nullptr;
+
     }
+    
     // cleanup scheduler
     getScheduler()->unscheduleAll();
     
@@ -702,6 +706,8 @@ void CAApplication::reset()
     
     // CrossApp specific data structures
     CAUserDefault::destroyInstance();
+    CC_SAFE_RELEASE_NULL(m_pKeypadDispatcher);
+//    CC_SAFE_RELEASE_NULL(m_pNotificationCenter);
     
     ccDrawFree();
     
@@ -741,12 +747,12 @@ void CAApplication::restartApplication()
     std::vector<string> searchPaths = FileUtils::getInstance()->getSearchPaths();
 
     reset();
-    
+    m_pKeypadDispatcher = new CAKeypadDispatcher();
     // RenderState need to be reinitialized
     RenderState::initialize();
     
     m_pImageCache = new (std::nothrow) CAImageCache();
-    
+//    m_pNotificationCenter = new (std::nothrow) CANotificationCenter();
     // Reschedule for action manager
     m_pScheduler->scheduleUpdate(this->getActionManager(), CAScheduler::PRIORITY_SYSTEM, false);
     
@@ -769,6 +775,8 @@ void CAApplication::restartApplication()
         }
     }
 #endif
+    
+    m_pobOpenGLView->setTouchDelegate(m_pTouchDispatcher);
 }
 
 void CAApplication::pause(void)
@@ -1006,8 +1014,10 @@ void CCDisplayLinkDirector::mainLoop(void)
             CAScheduler::getScheduler()->update(m_fDeltaTime);
             drawScene();
         }
-        CAPoolManager::getInstance()->pop();}
+        CAPoolManager::getInstance()->pop();
+        
     }
+}
 
 
 void CCDisplayLinkDirector::stopAnimation(void)

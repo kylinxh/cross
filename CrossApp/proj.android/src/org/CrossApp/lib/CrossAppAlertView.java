@@ -12,6 +12,7 @@ import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnDismissListener;
 import android.graphics.Color;
+import android.text.TextPaint;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -92,11 +93,13 @@ public final class CrossAppAlertView
 	
 	private static native void onClick(int index, int key);
 	
-	public static void show(final int key){
+	public static void show(final int key)
+	{
+		final AlertView alertView =  dict.get(key);
 		context.runOnUiThread(new Runnable() {
 			@Override
 			public void run() {
-				AlertView alertView =  dict.get(key) ; 
+				
 				final Dialog dialog = new Dialog(context) ; 
 				dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
 				dialog.getWindow().getDecorView().setBackgroundColor(Color.TRANSPARENT);
@@ -104,10 +107,11 @@ public final class CrossAppAlertView
 				
 				
 				int dimi_dialog_min_width = CrossAppHelper.dip2px(context, 250) ; 
-				int dimi_msg_horizental_margin = CrossAppHelper.dip2px(context, 10) ; 
-				int dimi_title_vertical_margin = CrossAppHelper.dip2px(context, 5) ;
+				int dimi_msg_horizental_margin = CrossAppHelper.dip2px(context, 16) ; 
+				int dimi_title_vertical_margin = CrossAppHelper.dip2px(context, 8) ;
+				int dimi_msg_vertical_margin = CrossAppHelper.dip2px(context, 4) ;
 				int dimi_btn_hei = CrossAppHelper.dip2px(context, 38);
-				int txt_size_title = CrossAppHelper.dip2px(context, 18) ; 
+				int txt_size_title = CrossAppHelper.dip2px(context, 16) ; 
 				int txt_size_msg = CrossAppHelper.dip2px(context, 14) ; 
 				String btn_txt_color_hex = "#417bf9";
 				
@@ -121,6 +125,8 @@ public final class CrossAppAlertView
 				TextView titleView = new TextView(context) ; 
 				titleView.setGravity(Gravity.CENTER);
 				titleView.setTextSize(TypedValue.COMPLEX_UNIT_PX, txt_size_title);
+				titleView.setTextColor(Color.parseColor("#000000"));
+				titleView.getPaint().setFakeBoldText(true);
 				titleView.setSingleLine(true);
 				titleView.setText(alertView.titile);
 				
@@ -133,12 +139,15 @@ public final class CrossAppAlertView
 				
 				//add msgview to contentview
 				TextView msgView = new TextView(context) ; 
+				msgView.setGravity(Gravity.CENTER);
 				msgView.setTextSize(TypedValue.COMPLEX_UNIT_PX,txt_size_msg);
+				msgView.setTextColor(Color.parseColor("#000000")); 
 				msgView.setText(alertView.message);
 				
 				
 				LinearLayout.LayoutParams msg_param = new LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT) ; 
 				msg_param.gravity = Gravity.CENTER_HORIZONTAL ; 
+				msg_param.topMargin = dimi_msg_vertical_margin;
 				msg_param.leftMargin= dimi_msg_horizental_margin ; 
 				msg_param.rightMargin = dimi_msg_horizental_margin ; 
 				container.addView(msgView,msg_param);	
@@ -151,50 +160,61 @@ public final class CrossAppAlertView
 				FrameLayout.LayoutParams scroll_param = new FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT) ; 
 				scroll_param.topMargin = dimi_title_vertical_margin * 2 ; 
 				scroll_param.gravity = Gravity.CENTER_HORIZONTAL ; 
-				rConerLayout.addView(scrollView,scroll_param);	
+				rConerLayout.addView(scrollView,scroll_param);
 				
 				//add buttons 
 				LinearLayout buttons_container = new LinearLayout(context) ; 
-				buttons_container.setOrientation(alertView.bottonTitles.size() <= 3 ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
-				for (int i = 0; i < alertView.bottonTitles.size(); i++) {
+				buttons_container.setOrientation(alertView.bottonTitles.size() < 3 ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+				for (int i = 0; i < alertView.bottonTitles.size(); i++) 
+				{
 					final int position = i ; 
 					TextView textView = new TextView(context) ; 
 					textView.setTextSize(TypedValue.COMPLEX_UNIT_PX,txt_size_msg);
-					textView.setGravity(Gravity.CENTER);
+					if (alertView.bottonTitles.size()<=2 || i==alertView.bottonTitles.size()-1)
+					{
+						textView.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM);
+					}
+					else
+					{
+						textView.setGravity(Gravity.CENTER);
+					}
 					textView.setText(alertView.bottonTitles.get(i));
 					textView.setClickable(true);
 					textView.setTextColor(Color.parseColor(btn_txt_color_hex));
 					LinearLayout.LayoutParams txt_params = new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dimi_btn_hei) ; 
 					
-					
-					if (alertView.bottonTitles.size()==1) {
+					if (alertView.bottonTitles.size()==1) 
+					{
 						textView.setBackgroundResource(R.drawable.selector_crossapp_alert_02);
-					}else if (alertView.bottonTitles.size()==2) {
+					}
+					else if (alertView.bottonTitles.size()==2) 
+					{
 						txt_params.weight = 1 ;
 						textView.setBackgroundResource(i == 0 ? R.drawable.selector_crossapp_alert_03: R.drawable.selector_crossapp_alert_04);
-					}else if (alertView.bottonTitles.size()==3) {
-						textView.setBackgroundResource(i==0 ? R.drawable.selector_crossapp_alert_03 : (i== 3 ? R.drawable.selector_crossapp_alert_04 : R.drawable.selector_crossapp_alert_01));
-						txt_params.weight = 1 ;
-					}else {
+					}
+					else
+					{
 						textView.setBackgroundResource((i==alertView.bottonTitles.size()-1) ? R.drawable.selector_crossapp_alert_02 : R.drawable.selector_crossapp_alert_01);
 					}
 					buttons_container.addView(textView, txt_params);
 					
 					textView.setOnClickListener(new View.OnClickListener() {
 						@Override
-						public void onClick(View v) {
-							dialog.dismiss();  
-							dict.remove(key) ; 
+						public void onClick(View v)
+						{
+							dialog.dismiss();
 							context.runOnGLThread(new Runnable() 
-					    	{
-					            @Override
-					            public void run()
-					            {
-					            	CrossAppAlertView.onClick(position, key);
-					            }
-					        });
+                        	{
+                                @Override
+                                public void run()
+                                {
+                                	dict.remove(key);
+        							CrossAppAlertView.onClick(position, key);
+                                }
+                            });
 						}
 					});
+					
 				}
 				scrollView.addView(buttons_container); 
 				

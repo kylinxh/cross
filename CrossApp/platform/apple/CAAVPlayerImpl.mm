@@ -2,6 +2,7 @@
 
 #include "platform/CAAVPlayerImpl.h"
 #include "view/CAAVPlayerView.h"
+#include "platform/CAFileUtils.h"
 #include "images/CAImage.h"
 #include "basics/CAApplication.h"
 #include "basics/CAScheduler.h"
@@ -42,13 +43,7 @@ static void playerLayer_play(AVPlayer* player, float rate, const std::function<v
         
 #if CC_TARGET_PLATFORM == CC_PLATFORM_MAC
         [s_pAVPlayerLayer setBackgroundColor:[NSColor blackColor].CGColor];
-        NSWindow* window = [[NSApplication sharedApplication] mainWindow];
-        if (window.contentView.layer == nil)
-        {
-            window.contentView.layer = [CALayer layer];
-        }
-        
-        [window.contentView.layer addSublayer:s_pAVPlayerLayer];
+        [s_pAVPlayerLayer retain];
 #else
         [s_pAVPlayerLayer setBackgroundColor:[UIColor blackColor].CGColor];
         UIWindow* window = [[UIApplication sharedApplication] keyWindow];
@@ -144,6 +139,7 @@ static CrossApp::CAImage* get_first_frame_image_with_filePath(NSURL* url)
     NSTimer*                    _timer;
     CrossApp::DSize             _presentationSize;
     CrossApp::CAImage*          _firstFrameImage;
+    std::string                 _PlayBufferLoadingStateTag;
 }
 @property (nonatomic, assign, setter=onPeriodicTime:) std::function<void(float, float)> periodicTime;
 @property (nonatomic, assign, setter=onLoadedTime:) std::function<void(float, float)> loadedTime;
@@ -197,17 +193,17 @@ static CrossApp::CAImage* get_first_frame_image_with_filePath(NSURL* url)
 
 - (void)setFilePath:(std::string)filePath
 {
-
-    std::string resource;
-    std::string type;
-    size_t pos = filePath.find_last_of(".");
-    resource = filePath.substr(0, pos);
-    type = filePath.substr(pos + 1, filePath.length() - pos - 1);
-    
-    NSString *path = [[NSBundle mainBundle] pathForResource:[NSString stringWithUTF8String:resource.c_str()]
-                                                   ofType:[NSString stringWithUTF8String:type.c_str()]];
-    
-    NSURL* videoUrl = [NSURL fileURLWithPath:path];
+//    std::string resource;
+//    std::string type;
+//    size_t pos = filePath.find_last_of(".");
+//    resource = filePath.substr(0, pos);
+//    type = filePath.substr(pos + 1, filePath.length() - pos - 1);
+//
+//    NSString *path = [[NSBundle mainBundle] pathForResource:[NSString stringWithUTF8String:resource.c_str()]
+//                                                   ofType:[NSString stringWithUTF8String:type.c_str()]];
+//    ;
+    std::string path = CrossApp::FileUtils::getInstance()->fullPathForFilename(filePath);
+    NSURL* videoUrl = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path.c_str()]];
     [self setup:videoUrl load:YES];
 }
 
@@ -468,18 +464,27 @@ static CrossApp::CAImage* get_first_frame_image_with_filePath(NSURL* url)
     }
     else if ([keyPath isEqualToString:@"playbackBufferEmpty"])
     { //监听播放器在缓冲数据的状态
-        NSLog(@"正在缓冲");
-        if (self.playBufferLoadingState)
+        
+        if (_PlayBufferLoadingStateTag.compare("playbackBufferEmpty"))
         {
-            self.playBufferLoadingState(CrossApp::CAAVPlayer::PlaybackBufferEmpty);
+            NSLog(@"正在缓冲");
+            _PlayBufferLoadingStateTag = "playbackBufferEmpty";
+            if (self.playBufferLoadingState)
+            {
+                self.playBufferLoadingState(CrossApp::CAAVPlayer::PlaybackBufferEmpty);
+            }
         }
     }
     else if ([keyPath isEqualToString:@"playbackLikelyToKeepUp"])
     {
-        NSLog(@"缓冲达到可播放");
-        if (self.playBufferLoadingState)
+        if (_PlayBufferLoadingStateTag.compare("playbackLikelyToKeepUp"))
         {
-            self.playBufferLoadingState(CrossApp::CAAVPlayer::PlaybackLikelyToKeepUp);
+            NSLog(@"缓冲达到可播放");
+            _PlayBufferLoadingStateTag = "playbackLikelyToKeepUp";
+            if (self.playBufferLoadingState)
+            {
+                self.playBufferLoadingState(CrossApp::CAAVPlayer::PlaybackLikelyToKeepUp);
+            }
         }
     }
     else if ([keyPath isEqualToString:@"rate"])

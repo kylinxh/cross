@@ -99,7 +99,7 @@ public:
     
     virtual ~CAViewModel();
     
-    static CAViewModel* create(CAView* v);
+    static CAViewModel* newModel(CAView* v);
     
     void getReady();
     
@@ -132,17 +132,16 @@ CAViewModel::CAViewModel(CAView* v)
 
 CAViewModel::~CAViewModel()
 {
-    CC_SAFE_RELEASE(view);
+    if (view)
+    {
+        view->autorelease();
+        view = nullptr;
+    }
 }
 
-CAViewModel* CAViewModel::create(CAView* v)
+CAViewModel* CAViewModel::newModel(CAView* v)
 {
-    CAViewModel* model = new CAViewModel(v);
-    if (model)
-    {
-        model->autorelease();
-    }
-    return model;
+    return new CAViewModel(v);
 }
 
 void CAViewModel::getReady()
@@ -748,7 +747,9 @@ void CAViewAnimation::allocCAViewModel(CAView* view)
     CAViewAnimation::Module* module = m_vWillModules.back();
     if (module->animations.at(view) == NULL)
     {
-        module->animations.insert(view, CAViewModel::create(view));
+        auto model = CAViewModel::newModel(view);
+        module->animations.insert(view, model);
+        model->release();
     }
 
 }

@@ -77,16 +77,6 @@ static NSFont* _createSystemFont(const std::string& fontName, float size)
 
 NS_CC_BEGIN
 
-void dipFontToPxFont(CAFont& font)
-{
-    font.fontSize = s_dip_to_px(font.fontSize);
-    font.lineSpacing = s_dip_to_px(font.lineSpacing);
-    font.shadow.shadowOffset.width = s_dip_to_px(font.shadow.shadowOffset.width);
-    font.shadow.shadowOffset.height = s_dip_to_px(font.shadow.shadowOffset.height);
-    font.shadow.shadowBlur = s_dip_to_px(font.shadow.shadowBlur);
-    font.stroke.strokeSize = s_dip_to_px(font.stroke.strokeSize);
-}
-
 NSAttributedString* NSAttributedStringForText(const std::string& text, const CAFont& font, const DSize& dim, CATextAlignment textAlignment)
 {
     NSString * str  = [NSString stringWithUTF8String:text.c_str()];
@@ -126,7 +116,7 @@ NSAttributedString* NSAttributedStringForText(const std::string& text, const CAF
     
     NSMutableParagraphStyle *paragraphStyle = [[[NSMutableParagraphStyle alloc] init] autorelease];
     [paragraphStyle setLineBreakMode:font.wordWrap ? NSLineBreakByWordWrapping : NSLineBreakByCharWrapping];
-    [paragraphStyle setLineSpacing:font.lineSpacing];
+    [paragraphStyle setLineSpacing:font.lineSpacing * 2];
     [paragraphStyle setAlignment:textAlign];
     
     // attribute
@@ -138,7 +128,7 @@ NSAttributedString* NSAttributedStringForText(const std::string& text, const CAF
     
     if (font.bold)
     {
-        [tokenAttributesDict setObject:@(-shrinkFontSize / 10.f) forKey:NSStrokeWidthAttributeName];
+        [tokenAttributesDict setObject:@(-shrinkFontSize / 20.f) forKey:NSStrokeWidthAttributeName];
         [tokenAttributesDict setObject:foregroundColor forKey:NSStrokeColorAttributeName];
     }
     
@@ -229,22 +219,18 @@ CAImage* CAFontProcesstor::imageForRichText(const std::vector<CARichLabel::Eleme
     do
     {
         CC_BREAK_IF(elements.empty());
-        
-        dim = DSize(s_dip_to_px(dim.width), s_dip_to_px(dim.height));
-        
+                
         NSMutableAttributedString *stringWithAttributes = [[NSMutableAttributedString alloc] init];
         
         for (auto& var : elements)
         {
             CAFont font = var.font;
-            dipFontToPxFont(font);
             NSAttributedString* attributedString = NSAttributedStringForText(var.text, font, dim, textAlignment);
             [stringWithAttributes appendAttributedString:attributedString];
         }
         
         CAFont firstFont = elements.front().font;
-        dipFontToPxFont(firstFont);
-        
+
         float shrinkFontSize = (firstFont.fontSize);
         id nsfont = _createSystemFont(firstFont.fontName, shrinkFontSize);
         
@@ -264,7 +250,11 @@ CAImage* CAFontProcesstor::imageForRichText(const std::vector<CARichLabel::Eleme
         [[NSAffineTransform transform] set];
         
         
-        [stringWithAttributes drawInRect:textRect];
+//        [stringWithAttributes drawInRect:textRect];
+        //modify by zmr 用于解决多行文本，显示不下时最后一行以省略号显示
+        NSStringDrawingContext *drawcontext = [[NSStringDrawingContext alloc] init];
+        [stringWithAttributes drawWithRect:textRect options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine context:drawcontext];
+        [drawcontext release];
         
         NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithFocusedViewRect:NSMakeRect (0.0f, 0.0f, POTWide, POTHigh)];
         [image unlockFocus];
@@ -272,7 +262,7 @@ CAImage* CAFontProcesstor::imageForRichText(const std::vector<CARichLabel::Eleme
         unsigned int pixelsWide = static_cast<unsigned int>(POTWide);
         unsigned int pixelsHigh = static_cast<unsigned int>(POTHigh);
         
-        dim = DSize(s_px_to_dip(pixelsWide), s_px_to_dip(pixelsHigh));
+        dim = DSize((pixelsWide), (pixelsHigh));
         
         ssize_t length = pixelsWide * pixelsHigh * 4;
         unsigned char *bytes = (unsigned char*)malloc(sizeof(unsigned char) * length);
@@ -295,10 +285,7 @@ CAImage* CAFontProcesstor::imageForText(const std::string& text, CAFont font, DS
     CAImage* ret = nullptr;
     do {
         CC_BREAK_IF(text.empty());
-        
-        dim = DSize(s_dip_to_px(dim.width), s_dip_to_px(dim.height));
-        dipFontToPxFont(font);
-        
+
         NSAttributedString *stringWithAttributes = NSAttributedStringForText(text, font, dim, textAlignment);
         
         float shrinkFontSize = (font.fontSize);
@@ -332,16 +319,20 @@ CAImage* CAFontProcesstor::imageForText(const std::string& text, CAFont font, DS
         [image lockFocus];
         // patch for mac retina display and lableTTF
         [[NSAffineTransform transform] set];
-        [stringWithAttributes drawInRect:textRect];
         
-
+//        [stringWithAttributes drawInRect:textRect];
+        //modify by zmr 用于解决多行文本，显示不下时最后一行以省略号显示
+        NSStringDrawingContext *drawcontext = [[NSStringDrawingContext alloc] init];
+        [stringWithAttributes drawWithRect:textRect options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine context:drawcontext];
+        [drawcontext release];
+        
         NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithFocusedViewRect:NSMakeRect (0.0f, 0.0f, POTWide, POTHigh)];
         [image unlockFocus];
         
         unsigned int pixelsWide = static_cast<unsigned int>(POTWide);
         unsigned int pixelsHigh = static_cast<unsigned int>(POTHigh);
         
-        dim = DSize(s_px_to_dip(pixelsWide), s_px_to_dip(pixelsHigh));
+        dim = DSize((pixelsWide), (pixelsHigh));
         
         ssize_t length = pixelsWide * pixelsHigh * 4;
         unsigned char *bytes = (unsigned char*)malloc(sizeof(unsigned char) * length);
@@ -441,7 +432,7 @@ float CAFontProcesstor::heightForTextAtWidth(const std::string& text, const CAFo
         
         NSMutableParagraphStyle *paragraphStyle = [[[NSMutableParagraphStyle alloc] init] autorelease];
         [paragraphStyle setLineBreakMode:font.wordWrap ? NSLineBreakByWordWrapping : NSLineBreakByCharWrapping];
-        [paragraphStyle setLineSpacing:font.lineSpacing];
+        [paragraphStyle setLineSpacing:font.lineSpacing * 2];
         [paragraphStyle setAlignment:NSTextAlignmentLeft];
         
         // attribute

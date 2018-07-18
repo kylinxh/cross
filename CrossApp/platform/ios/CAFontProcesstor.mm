@@ -29,7 +29,7 @@ static id _createSystemFont(const CrossApp::CAFont& font)
     
     if (!iosFont)
     {
-        iosFont = [UIFont fontWithName:@"Helvetica" size:shrinkFontSize];
+        iosFont = [UIFont fontWithName:@"Heiti SC" size:shrinkFontSize];
     }
 
     return iosFont;
@@ -80,10 +80,10 @@ void dipFontToPxFont(CAFont& font)
 {
     font.fontSize = s_dip_to_px(font.fontSize);
     font.lineSpacing = s_dip_to_px(font.lineSpacing);
-    font.shadow.shadowOffset.width = s_dip_to_px(font.shadow.shadowOffset.width);
-    font.shadow.shadowOffset.height = s_dip_to_px(font.shadow.shadowOffset.height);
+    font.shadow.shadowOffset.width = s_dip_to_px(font.shadow.shadowOffset.width) /2;
+    font.shadow.shadowOffset.height = s_dip_to_px(font.shadow.shadowOffset.height) /2;
     font.shadow.shadowBlur = s_dip_to_px(font.shadow.shadowBlur);
-    font.stroke.strokeSize = s_dip_to_px(font.stroke.strokeSize);
+    font.stroke.strokeSize = s_dip_to_px(font.stroke.strokeSize) / [[UIScreen mainScreen] scale];
 }
 
 NSAttributedString* NSAttributedStringForText(const std::string& text, const CAFont& font, const DSize& dim, CATextAlignment textAlignment)
@@ -123,7 +123,9 @@ NSAttributedString* NSAttributedStringForText(const std::string& text, const CAF
     NSTextAlignment textAlign = _calculateTextAlignment(textAlignment);
     
     NSMutableParagraphStyle *paragraphStyle = [[[NSMutableParagraphStyle alloc] init] autorelease];
+    
     [paragraphStyle setLineBreakMode:font.wordWrap ? NSLineBreakByWordWrapping : NSLineBreakByCharWrapping];
+
     [paragraphStyle setLineSpacing:font.lineSpacing];
     [paragraphStyle setAlignment:textAlign];
     
@@ -137,7 +139,7 @@ NSAttributedString* NSAttributedStringForText(const std::string& text, const CAF
     
     if (font.bold)
     {
-        [tokenAttributesDict setObject:@(-shrinkFontSize / 10.f) forKey:NSStrokeWidthAttributeName];
+        [tokenAttributesDict setObject:@(-shrinkFontSize / 20.f) forKey:NSStrokeWidthAttributeName];
         [tokenAttributesDict setObject:foregroundColor forKey:NSStrokeColorAttributeName];
     }
     
@@ -243,7 +245,7 @@ CAImage* CAFontProcesstor::imageForRichText(const std::vector<CARichLabel::Eleme
         
         CAFont firstFont = elements.front().font;
         dipFontToPxFont(firstFont);
-        
+
         float shrinkFontSize = (firstFont.fontSize);
         id iosfont = _createSystemFont(firstFont);
         
@@ -315,7 +317,11 @@ CAImage* CAFontProcesstor::imageForRichText(const std::vector<CARichLabel::Eleme
         CGContextSetTextDrawingMode(context, kCGTextFill);
         
         // actually draw the text in the context
-        [stringWithAttributes drawInRect:textRect];
+        //[stringWithAttributes drawInRect:textRect];
+        //modify by zmr 用于解决多行文本，显示不下时最后一行以省略号显示
+        NSStringDrawingContext *drawcontext = [[NSStringDrawingContext alloc] init];
+        [stringWithAttributes drawWithRect:textRect options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine context:drawcontext];
+        [drawcontext release];
         
         CGContextEndTransparencyLayer(context);
         
@@ -422,8 +428,11 @@ CAImage* CAFontProcesstor::imageForText(const std::string& text, CAFont font, DS
         CGContextSetTextDrawingMode(context, kCGTextFill);
         
         // actually draw the text in the context
-        [stringWithAttributes drawInRect:textRect];
-        
+        //[stringWithAttributes drawInRect:textRect];
+        //modify by zmr 用于解决多行文本，显示不下时最后一行以省略号显示
+        NSStringDrawingContext *drawcontext = [[NSStringDrawingContext alloc] init];
+        [stringWithAttributes drawWithRect:textRect options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingTruncatesLastVisibleLine context:drawcontext];
+        [drawcontext release];
         /*
          if (true)
          {
@@ -465,11 +474,14 @@ CAImage* CAFontProcesstor::imageForText(const std::string& text, CAFont font, DS
     return ret;
 }
 
-float CAFontProcesstor::heightForFont(const CAFont& font)
+float CAFontProcesstor::heightForFont(const CAFont& f)
 {
     float ret = 0;
     do
     {
+        CAFont font = f;
+        dipFontToPxFont(font);
+        
         id iosfont = _createSystemFont(font);
         CC_BREAK_IF(!iosfont);
         
@@ -516,8 +528,8 @@ float CAFontProcesstor::heightForFont(const CAFont& font)
                                 options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingTruncatesLastVisibleLine)
                                 context:nil].size;
         
-        dim.width = ceilf(dim.width);
-        dim.height = ceilf(dim.height);
+        dim.width = ceilf(s_px_to_dip(dim.width));
+        dim.height = ceilf(s_px_to_dip(dim.height));
         
         ret = dim.height;
         
@@ -526,7 +538,7 @@ float CAFontProcesstor::heightForFont(const CAFont& font)
     return ret;
 }
 
-float CAFontProcesstor::heightForTextAtWidth(const std::string& text, const CAFont& font, float width)
+float CAFontProcesstor::heightForTextAtWidth(const std::string& text, const CAFont& f, float width)
 {
     float ret = 0;
     do
@@ -535,6 +547,10 @@ float CAFontProcesstor::heightForTextAtWidth(const std::string& text, const CAFo
         
         NSString* string = [NSString stringWithUTF8String:text.c_str()];
         CC_BREAK_IF(!string);
+        
+        CAFont font = f;
+        dipFontToPxFont(font);
+        width = s_dip_to_px(width);
         
         id iosfont = _createSystemFont(font);
         CC_BREAK_IF(!iosfont);
@@ -581,8 +597,8 @@ float CAFontProcesstor::heightForTextAtWidth(const std::string& text, const CAFo
                                 options:(NSStringDrawingUsesLineFragmentOrigin|NSStringDrawingTruncatesLastVisibleLine)
                                 context:nil].size;
         
-        dim.width = ceilf(dim.width);
-        dim.height = ceilf(dim.height);
+        dim.width = ceilf(s_px_to_dip(dim.width));
+        dim.height = ceilf(s_px_to_dip(dim.height));
         
         ret = dim.height;
         
@@ -591,7 +607,7 @@ float CAFontProcesstor::heightForTextAtWidth(const std::string& text, const CAFo
     return ret;
 }
 
-float CAFontProcesstor::widthForTextAtOneLine(const std::string& text, const CAFont& font)
+float CAFontProcesstor::widthForTextAtOneLine(const std::string& text, const CAFont& f)
 {
     float ret = 0;
     do
@@ -600,6 +616,9 @@ float CAFontProcesstor::widthForTextAtOneLine(const std::string& text, const CAF
         
         NSString* string = [NSString stringWithUTF8String:text.c_str()];
         CC_BREAK_IF(!string);
+        
+        CAFont font = f;
+        dipFontToPxFont(font);
         
         float shrinkFontSize = (font.fontSize);
         id iosfont = _createSystemFont(font);
@@ -657,7 +676,7 @@ float CAFontProcesstor::widthForTextAtOneLine(const std::string& text, const CAF
             }
         }
         
-        ret = ceilf(dim.width);
+        ret = ceilf(s_px_to_dip(dim.width));
         
     } while (0);
     
